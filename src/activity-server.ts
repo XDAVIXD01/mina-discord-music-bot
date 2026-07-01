@@ -122,12 +122,16 @@ async function prepareYouTubeStream(rawUrl: string): Promise<YouTubeStream> {
     "-c:a", "aac",
     "-b:a", "192k",
     "-f", "hls",
-    "-hls_time", "4",
+    "-hls_time", "2",
     "-hls_list_size", "0",
     "-hls_flags", "independent_segments",
     "-hls_segment_filename", path.join(directory, "segment-%05d.ts"),
     path.join(directory, "index.m3u8"),
   ], { windowsHide: true });
+  let ffmpegError = "";
+  ffmpegProcess.stderr?.on("data", (chunk: Buffer) => {
+    ffmpegError = `${ffmpegError}${chunk.toString()}`.slice(-4_000);
+  });
 
   const stream: YouTubeStream = { createdAt: Date.now(), directory, id, process: ffmpegProcess };
   youtubeStreamsByUrl.set(url.href, stream);
@@ -138,7 +142,9 @@ async function prepareYouTubeStream(rawUrl: string): Promise<YouTubeStream> {
 
   const manifestPath = path.join(directory, "index.m3u8");
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (ffmpegProcess.exitCode !== null && ffmpegProcess.exitCode !== 0) throw new Error("FFmpeg no pudo preparar el video.");
+    if (ffmpegProcess.exitCode !== null && ffmpegProcess.exitCode !== 0) {
+      throw new Error(`FFmpeg no pudo preparar el video. ${ffmpegError.trim()}`);
+    }
     try {
       const manifest = await readFile(manifestPath, "utf8");
       if (manifest.includes("#EXTINF")) return stream;

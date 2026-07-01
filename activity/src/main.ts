@@ -102,6 +102,31 @@ function configureRole() {
   if (!controller) showMessage("Solo quien inició el Stream puede cambiar el video.");
 }
 
+function waitUntilMediaReady(timeoutMs = 12_000): Promise<void> {
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("El video tardó demasiado en cargar."));
+    }, timeoutMs);
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error(video.error?.message || "No se pudo preparar el reproductor."));
+    };
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      video.removeEventListener("loadedmetadata", onReady);
+      video.removeEventListener("error", onError);
+    };
+    video.addEventListener("loadedmetadata", onReady, { once: true });
+    video.addEventListener("error", onError, { once: true });
+  });
+}
+
 async function loadSource(url: string) {
   hls?.destroy();
   hls = undefined;
@@ -124,7 +149,14 @@ async function loadSource(url: string) {
     ? apiPath(`${playableUrl}?session=${encodeURIComponent(sessionId)}`)
     : mediaUrl(playableUrl);
   if (/\.m3u8(?:$|[?#])/i.test(playableUrl) && Hls.isSupported()) {
-    hls = new Hls({ enableWorker: true });
+    hls = new Hls({
+      backBufferLength: 20,
+      enableWorker: true,
+      lowLatencyMode: true,
+      maxBufferLength: 12,
+      maxMaxBufferLength: 24,
+      startPosition: 0,
+    });
     hls.loadSource(proxied);
     hls.attachMedia(video);
     hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -133,6 +165,7 @@ async function loadSource(url: string) {
   } else {
     video.src = proxied;
   }
+  await waitUntilMediaReady();
   showMessage(controller ? "" : "Solo quien inició el Stream puede cambiar el video.");
 }
 
@@ -149,9 +182,19 @@ async function applyState(state: PlaybackState) {
     const target = state.paused
       ? state.currentTime
       : state.currentTime + Math.max(0, (Date.now() - state.updatedAt) / 1000);
-    if (Number.isFinite(target) && Math.abs(video.currentTime - target) > 1.25) video.currentTime = target;
-    if (state.paused) video.pause();
-    else await video.play().then(() => {
+    const drift = target - video.currentTime;
+    if (Number.isFinite(target) && Math.abs(drift) > 0.65) {
+      video.currentTime = Math.max(0, Math.min(target, video.duration || target));
+      video.playbackRate = 1;
+    } else if (!state.paused && Math.abs(drift) > 0.12) {
+      video.playbackRate = drift > 0 ? 1.06 : 0.94;
+    } else {
+      video.playbackRate = 1;
+    }
+    if (state.paused) {
+      video.pause();
+      video.playbackRate = 1;
+    } else await video.play().then(() => {
       syncButton.hidden = true;
     }).catch(() => {
       if (!controller) {
@@ -183,12 +226,15 @@ form.addEventListener("submit", (event) => {
 video.addEventListener("play", () => sendState(false));
 video.addEventListener("pause", () => sendState(true));
 video.addEventListener("seeked", () => sendState(video.paused));
+video.addEventListener("canplay", () => {
+  if (!controller && latestState) void applyState(latestState);
+});
 syncButton.addEventListener("click", () => {
   if (latestState) void applyState(latestState);
 });
 setInterval(() => {
   if (controller && !video.paused) sendState(false);
-}, 5_000);
+}, 1_000);
 
 createSession().then(connect).catch((error) => {
   status.textContent = "Error";
