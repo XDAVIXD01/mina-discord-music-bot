@@ -61,12 +61,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) await handleCommand(interaction);
   } catch (error) {
     console.error(error);
-    const message = `❌ ${error instanceof Error ? error.message : "Ocurrió un error inesperado."}`;
+    const apiCode = typeof error === "object" && error && "code" in error ? Number(error.code) : 0;
+    const message = apiCode === 50234
+      ? "❌ La Discord Activity de MINA todavía no está habilitada en el Developer Portal."
+      : `❌ ${error instanceof Error ? error.message : "Ocurrió un error inesperado."}`;
     if (!interaction.isRepliable()) return;
-    if (interaction.deferred || interaction.replied) await interaction.editReply(message);
-    else await interaction.reply({ content: message, ephemeral: true });
+    try {
+      if (interaction.deferred || interaction.replied) await interaction.editReply(message);
+      else await interaction.reply({ content: message, ephemeral: true });
+    } catch (replyError) {
+      console.error("No se pudo responder a la interacción fallida:", replyError);
+    }
   }
 });
+
+client.on(Events.Error, (error) => console.error("Error del cliente de Discord:", error));
 
 async function handleCommand(interaction: ChatInputCommandInteraction<"cached">): Promise<void> {
   if (interaction.commandName === "stream") {
