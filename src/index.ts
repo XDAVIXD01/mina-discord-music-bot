@@ -17,6 +17,7 @@ import {
   togglePause,
   toggleRepeat,
 } from "./music.js";
+import { startActivityServer } from "./activity-server.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) throw new Error("Falta DISCORD_TOKEN en .env");
@@ -28,6 +29,8 @@ const client = new Client({
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Conectado como ${readyClient.user.tag}`);
 });
+
+startActivityServer();
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.inCachedGuild()) return;
@@ -66,6 +69,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 async function handleCommand(interaction: ChatInputCommandInteraction<"cached">): Promise<void> {
+  if (interaction.commandName === "stream") {
+    if (!process.env.DISCORD_CLIENT_SECRET) {
+      await interaction.reply({
+        content: "El modo Stream aún no está configurado: falta DISCORD_CLIENT_SECRET.",
+        ephemeral: true,
+      });
+      return;
+    }
+    await interaction.launchActivity();
+    return;
+  }
+
   const memberChannel = interaction.member.voice.channel;
   const queue = getQueue(interaction.guildId);
 

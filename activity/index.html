@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MINA Stream</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <span class="eyebrow">MINA · WATCH PARTY</span>
+          <h1>Stream sincronizado</h1>
+        </div>
+        <span id="status" class="status">Conectando…</span>
+      </header>
+      <section class="player-shell">
+        <video id="video" playsinline controls hidden></video>
+        <div id="empty" class="empty">
+          <span class="playmark">▶</span>
+          <strong>Esperando un video</strong>
+          <small>Pega un enlace HLS, MP4 o WebM para verlo juntos.</small>
+        </div>
+      </section>
+      <form id="source-form">
+        <input id="source" type="url" placeholder="https://servidor/video.m3u8" required />
+        <button type="submit">Reproducir</button>
+      </form>
+      <p id="message" class="message"></p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

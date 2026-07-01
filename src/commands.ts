@@ -16,4 +16,7 @@ export const commands = [
   new SlashCommandBuilder().setName("stop").setDescription("Vacía la cola y desconecta el bot"),
   new SlashCommandBuilder().setName("queue").setDescription("Muestra la cola de reproducción"),
   new SlashCommandBuilder().setName("nowplaying").setDescription("Muestra la canción actual"),
+  new SlashCommandBuilder()
+    .setName("stream")
+    .setDescription("Abre el reproductor de video sincronizado de MINA"),
 ].map((command) => command.toJSON());

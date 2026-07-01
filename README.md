@@ -65,4 +65,30 @@ YouTube cambia con frecuencia. Si deja de reproducir, primero actualiza `yt-dlp`
 yt-dlp -U
 ```
 
+## MINA Stream (video sincronizado)
+
+El comando `/stream` abre una Discord Activity compartida. Cualquier participante puede pegar un enlace
+HLS (`.m3u8`), MP4 o WebM, y las acciones de reproducir, pausar y buscar se sincronizan para la sala.
+Los manifiestos HLS y sus segmentos pasan por un proxy autenticado que también resuelve bloqueos CORS.
+
+Variables adicionales:
+
+```env
+DISCORD_CLIENT_SECRET=client_secret_de_oauth2
+ACTIVITY_PORT=3001
+```
+
+Configuración en el Discord Developer Portal:
+
+1. En **Activities > Getting Started**, habilita Activities.
+2. En **Activities > URL Mappings**, crea el prefijo `/` apuntando a la URL HTTPS pública del servicio.
+3. En **Installation**, conserva `Guild Install` y los scopes `bot` y `applications.commands`.
+4. Ejecuta `npm run deploy` para registrar `/stream`.
+
+Para producción, construye la imagen con `docker build -t mina-bot .` y publica el puerto `3001` detrás
+de HTTPS. El mismo proceso mantiene el bot, el reproductor web, el WebSocket de sincronización y el proxy.
+
+Los streams con DRM no son compatibles. Los enlaces firmados dejan de funcionar cuando alcanzan su fecha
+de expiración y deben reemplazarse por un enlace vigente.
+
 El uso de contenido debe respetar los derechos de autor y los términos aplicables de YouTube y Discord. Este proyecto no descarga ni conserva archivos: transmite audio temporalmente al canal de voz.
