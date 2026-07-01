@@ -1,8 +1,10 @@
 import { lookup } from "node:dns/promises";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
 import { isIP } from "node:net";
 import { Readable } from "node:stream";
+import { promisify } from "node:util";
 import path from "node:path";
 import express from "express";
 import { WebSocket, WebSocketServer } from "ws";
@@ -19,6 +21,7 @@ const rooms = new Map<string, { state?: PlaybackState; clients: Set<WebSocket> }
 const sessions = new Map<string, number>();
 const activityPort = Number(process.env.PORT || process.env.ACTIVITY_PORT || 3001);
 const localMode = process.env.NODE_ENV !== "production";
+const execFileAsync = promisify(execFile);
 
 function isPrivateAddress(address: string): boolean {
   const normalized = address.toLowerCase();
@@ -45,6 +48,32 @@ async function validateRemoteUrl(raw: string): Promise<URL> {
 function verifySession(sessionId: string): boolean {
   if (localMode && !sessionId) return true;
   return Boolean(sessionId && (sessions.get(sessionId) || 0) > Date.now());
+}
+
+function isYouTubeUrl(url: URL): boolean {
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+  return hostname === "youtube.com" || hostname === "m.youtube.com" || hostname === "youtu.be";
+}
+
+async function resolveYouTubeVideo(rawUrl: string): Promise<string> {
+  const url = await validateRemoteUrl(rawUrl);
+  if (!isYouTubeUrl(url)) throw new Error("El enlace no pertenece a YouTube.");
+  const ytDlp = process.env.YTDLP_PATH || "yt-dlp";
+  const { stdout } = await execFileAsync(ytDlp, [
+    "--no-playlist",
+    "--no-warnings",
+    "--format", "best[ext=mp4][protocol^=http]/best[protocol^=http]/best",
+    "--get-url",
+    url.href,
+  ], {
+    timeout: 45_000,
+    maxBuffer: 2 * 1024 * 1024,
+    windowsHide: true,
+  });
+  const resolved = stdout.split(/\r?\n/).find((line) => /^https?:\/\//i.test(line.trim()))?.trim();
+  if (!resolved) throw new Error("YouTube no entregó un formato reproducible.");
+  await validateRemoteUrl(resolved);
+  return resolved;
 }
 
 async function fetchValidated(start: URL, range?: string): Promise<{ response: Response; finalUrl: URL }> {
@@ -109,6 +138,23 @@ export function startActivityServer(): void {
     } catch (error) {
       console.error("OAuth Activity:", error);
       res.status(500).json({ error: "No se pudo autenticar." });
+    }
+  });
+
+  app.get("/api/resolve", async (req, res) => {
+    try {
+      const sessionId = String(req.query.session || "");
+      if (!verifySession(sessionId)) return res.status(401).json({ error: "No autorizado." });
+      const sourceUrl = String(req.query.url || "");
+      const parsed = new URL(sourceUrl);
+      if (!isYouTubeUrl(parsed)) return res.json({ type: "direct", url: sourceUrl });
+      const resolvedUrl = await resolveYouTubeVideo(sourceUrl);
+      res.json({ type: "youtube", url: resolvedUrl });
+    } catch (error) {
+      console.error("Resolución de video:", error);
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "No se pudo resolver el video.",
+      });
     }
   });
 

@@ -89,8 +89,18 @@ async function loadSource(url: string) {
   currentUrl = url;
   empty.hidden = true;
   video.hidden = false;
-  const proxied = mediaUrl(url);
-  if (/\.m3u8(?:$|[?#])/i.test(url) && Hls.isSupported()) {
+  showMessage("Preparando video…");
+  let playableUrl = url;
+  if (/(?:youtube\.com\/(?:watch|shorts)|youtu\.be\/)/i.test(url)) {
+    const response = await fetch(apiPath(
+      `/api/resolve?url=${encodeURIComponent(url)}&session=${encodeURIComponent(sessionId)}`,
+    ));
+    const result = await response.json() as { url?: string; error?: string };
+    if (!response.ok || !result.url) throw new Error(result.error || "No se pudo preparar el video de YouTube.");
+    playableUrl = result.url;
+  }
+  const proxied = mediaUrl(playableUrl);
+  if (/\.m3u8(?:$|[?#])/i.test(playableUrl) && Hls.isSupported()) {
     hls = new Hls({ enableWorker: true });
     hls.loadSource(proxied);
     hls.attachMedia(video);
@@ -100,6 +110,7 @@ async function loadSource(url: string) {
   } else {
     video.src = proxied;
   }
+  showMessage("");
 }
 
 async function applyState(state: PlaybackState) {
@@ -134,10 +145,9 @@ form.addEventListener("submit", (event) => {
   event.preventDefault();
   const url = input.value.trim();
   if (!/^https?:\/\//i.test(url)) return showMessage("Ingresa un enlace HTTP o HTTPS válido.", true);
-  void loadSource(url).then(() => {
-    showMessage("");
-    sendState(true);
-  });
+  void loadSource(url)
+    .then(() => sendState(true))
+    .catch((error) => showMessage(error instanceof Error ? error.message : "No se pudo cargar el video.", true));
 });
 video.addEventListener("play", () => sendState(false));
 video.addEventListener("pause", () => sendState(true));
