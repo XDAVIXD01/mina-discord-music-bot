@@ -17,7 +17,7 @@ import {
   togglePause,
   toggleRepeat,
 } from "./music.js";
-import { startActivityServer } from "./activity-server.js";
+import { registerActivityRoom, startActivityServer } from "./activity-server.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) throw new Error("Falta DISCORD_TOKEN en .env");
@@ -79,14 +79,9 @@ client.on(Events.Error, (error) => console.error("Error del cliente de Discord:"
 
 async function handleCommand(interaction: ChatInputCommandInteraction<"cached">): Promise<void> {
   if (interaction.commandName === "stream") {
-    if (!process.env.DISCORD_CLIENT_SECRET) {
-      await interaction.reply({
-        content: "El modo Stream aún no está configurado: falta DISCORD_CLIENT_SECRET.",
-        ephemeral: true,
-      });
-      return;
-    }
-    await interaction.launchActivity();
+    const response = await interaction.launchActivity({ withResponse: true });
+    const instanceId = response.resource?.activityInstance?.id ?? response.interaction.activityInstanceId;
+    if (instanceId) registerActivityRoom(instanceId, interaction.user.id);
     return;
   }
 

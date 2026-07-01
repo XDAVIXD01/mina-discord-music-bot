@@ -13,6 +13,8 @@ video { width: 100%; height: 100%; background: #000; }
 .empty[hidden], video[hidden] { display: none; }
 .empty small { color: #9295a6; text-align: center; }
 .playmark { display: grid; place-items: center; width: 72px; height: 72px; padding-left: 5px; border-radius: 50%; background: linear-gradient(135deg, #7367ff, #b65cff); box-shadow: 0 0 45px #7c64ff66; font-size: 25px; }
+.sync-button { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); min-height: 44px; white-space: nowrap; box-shadow: 0 8px 30px #0009; }
+.sync-button[hidden] { display: none; }
 form { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 16px; }
 input, button { min-height: 50px; border-radius: 12px; border: 1px solid #383a49; font: inherit; }
 input { min-width: 0; padding: 0 16px; background: #1b1c25; color: white; outline: none; }
