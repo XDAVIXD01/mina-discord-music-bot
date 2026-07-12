@@ -39,6 +39,7 @@ type ReaderSession = {
 
 const sessions = new Map<string, ReaderSession>();
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
+const espeak = process.env.ESPEAK_PATH || "espeak-ng";
 const voicePython = process.env.VOICE_PYTHON_PATH || "C:\\mina-voice-venv\\Scripts\\python.exe";
 const voiceReference = process.env.VOICE_REFERENCE_PATH || path.resolve("assets", "voice", "user_reference.wav");
 const voiceWorkerScript = path.resolve("scripts", "chatterbox_worker.py");
@@ -213,6 +214,26 @@ async function synthesizeWindows(text: string, directory: string): Promise<strin
   return wavPath;
 }
 
+async function synthesizeLinux(text: string, directory: string): Promise<string> {
+  await mkdir(directory, { recursive: true });
+  const id = createHash("sha1").update(`${Date.now()}:${randomUUID()}:${text}:linux`).digest("hex");
+  const wavPath = path.join(directory, `${id}.wav`);
+  await run(espeak, [
+    "-v",
+    process.env.ESPEAK_VOICE || "es-419+f3",
+    "-s",
+    process.env.ESPEAK_SPEED || "172",
+    "-p",
+    process.env.ESPEAK_PITCH || "58",
+    "-a",
+    process.env.ESPEAK_AMPLITUDE || "145",
+    "-w",
+    wavPath,
+    text,
+  ]);
+  return wavPath;
+}
+
 async function synthesizeCloned(text: string, directory: string): Promise<string> {
   if (!existsSync(voicePython) || !existsSync(voiceReference) || !existsSync(voiceWorkerScript)) {
     throw new Error("Motor de voz personalizada no configurado.");
@@ -270,7 +291,8 @@ async function synthesize(text: string, directory: string): Promise<string> {
       console.error("[voz-personalizada] usando voz de Windows:", error);
     }
   }
-  return await synthesizeWindows(text, directory);
+  if (process.platform === "win32") return await synthesizeWindows(text, directory);
+  return await synthesizeLinux(text, directory);
 }
 
 async function speakNext(session: ReaderSession): Promise<void> {
