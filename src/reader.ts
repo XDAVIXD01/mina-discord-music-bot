@@ -35,6 +35,7 @@ type ReaderSession = {
   stopped: boolean;
   transcoder?: ChildProcessWithoutNullStreams;
   wavPath?: string;
+  debugNoticeSent: boolean;
 };
 
 const sessions = new Map<string, ReaderSession>();
@@ -315,6 +316,7 @@ async function speakNext(session: ReaderSession): Promise<void> {
   let wavPath = "";
   try {
     wavPath = await synthesize(job.text, directory);
+    console.log(`[lector:${session.guild.id}] audio generado para texto: ${job.text.slice(0, 80)}`);
     if (session.stopped) return;
 
     const audioFilter = "loudnorm=I=-18:LRA=8:TP=-1.5,acompressor=threshold=-22dB:ratio=2:attack=18:release=180,alimiter=limit=0.95";
@@ -342,6 +344,9 @@ async function speakNext(session: ReaderSession): Promise<void> {
     session.player.play(createAudioResource(transcoder.stdout, { inputType: StreamType.Raw }));
   } catch (error) {
     console.error("[lector]", error);
+    void session.textChannel
+      .send(`⚠️ No pude leer el mensaje: ${error instanceof Error ? error.message : "error desconocido"}`)
+      .catch(() => undefined);
     session.speaking = false;
     if (wavPath) await rm(wavPath, { force: true }).catch(() => undefined);
     void speakNext(session);
@@ -394,6 +399,7 @@ export async function startReader(options: {
     jobs: [],
     speaking: false,
     stopped: false,
+    debugNoticeSent: false,
   };
   wirePlayer(session);
   sessions.set(options.guild.id, session);
@@ -422,7 +428,17 @@ export function handleReaderMessage(message: Message): void {
   const session = sessions.get(message.guild.id);
   if (!session || session.textChannel.id !== message.channel.id) return;
   const text = safeText(message);
-  if (!text) return;
+  if (!text) {
+    console.warn(`[lector:${message.guild.id}] mensaje recibido sin contenido legible. Revisa Message Content Intent.`);
+    if (!session.debugNoticeSent) {
+      session.debugNoticeSent = true;
+      void session.textChannel
+        .send("⚠️ Recibí un mensaje, pero Discord no me entregó el texto. Activa **Message Content Intent** en el Developer Portal del bot y reinicia MINA.")
+        .catch(() => undefined);
+    }
+    return;
+  }
+  console.log(`[lector:${message.guild.id}] en cola: ${text.slice(0, 120)}`);
   session.jobs.push({ id: randomUUID(), text });
   if (session.jobs.length > 8) session.jobs.splice(0, session.jobs.length - 8);
   void speakNext(session);
