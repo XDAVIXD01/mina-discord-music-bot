@@ -8,6 +8,8 @@ $ErrorActionPreference = "Stop"
 $projectPath = $PSScriptRoot
 $stdout = Join-Path $projectPath "bot.stdout.log"
 $stderr = Join-Path $projectPath "bot.stderr.log"
+$envPath = Join-Path $projectPath ".env"
+$voicePython = "C:\mina-voice-venv\Scripts\python.exe"
 
 Add-Type -AssemblyName PresentationFramework
 
@@ -64,6 +66,59 @@ function Restart-Mina {
     Start-Mina
 }
 
+function Get-EnvValue([string]$Name) {
+    if (-not (Test-Path $envPath)) { return "" }
+    $line = Select-String -LiteralPath $envPath -Pattern "^$([regex]::Escape($Name))=" | Select-Object -First 1
+    if (-not $line) { return "" }
+    return $line.Line.Split("=", 2)[1].Trim()
+}
+
+function Get-VoiceStatus {
+    $remoteUrl = Get-EnvValue "VOICE_REMOTE_URL"
+    if ($remoteUrl) {
+        try {
+            $health = Invoke-RestMethod -Uri ($remoteUrl.TrimEnd("/") + "/health") -TimeoutSec 5
+            if ($health.ok) {
+                if ($health.device -eq "cuda") {
+                    return @{
+                        Text = "Voz IA: Google Colab GPU"
+                        Color = "#38D27A"
+                    }
+                }
+                return @{
+                    Text = "Voz IA: Google Colab CPU"
+                    Color = "#F0B94A"
+                }
+            }
+        } catch {
+            # Si Colab no responde, revisamos si la voz local está disponible.
+        }
+    }
+
+    if (Test-Path $voicePython) {
+        try {
+            $device = & $voicePython -c "import torch; print('cuda' if torch.cuda.is_available() else 'cpu')" 2>$null
+            if (($device | Select-Object -First 1) -eq "cuda") {
+                return @{
+                    Text = "Voz IA: GPU local"
+                    Color = "#7C8CFF"
+                }
+            }
+            return @{
+                Text = "Voz IA: CPU local"
+                Color = "#F0B94A"
+            }
+        } catch {
+            # Seguimos al estado no disponible.
+        }
+    }
+
+    return @{
+        Text = "Voz IA: no disponible"
+        Color = "#E05266"
+    }
+}
+
 if ($Mode -ne "Panel") {
     switch ($Mode) {
         "Start" { Start-Mina }
@@ -80,7 +135,7 @@ if ($Mode -ne "Panel") {
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         Title="Control de MINA"
         Width="390"
-        Height="260"
+        Height="310"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         Background="#17181D">
@@ -97,16 +152,27 @@ if ($Mode -ne "Panel") {
                    FontSize="25"
                    FontWeight="SemiBold"/>
 
-        <Border Grid.Row="1"
+        <StackPanel Grid.Row="1"
                 Margin="0,14,0,20"
-                Padding="12,8"
-                CornerRadius="8"
-                Background="#24262E">
-            <StackPanel Orientation="Horizontal">
-                <Ellipse Name="StatusDot" Width="10" Height="10" Margin="0,0,9,0"/>
-                <TextBlock Name="StatusText" Foreground="#D8DAE3" FontSize="14"/>
-            </StackPanel>
-        </Border>
+                Orientation="Vertical">
+            <Border Padding="12,8"
+                    CornerRadius="8"
+                    Background="#24262E">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Name="StatusDot" Width="10" Height="10" Margin="0,0,9,0"/>
+                    <TextBlock Name="StatusText" Foreground="#D8DAE3" FontSize="14"/>
+                </StackPanel>
+            </Border>
+            <Border Margin="0,8,0,0"
+                    Padding="12,8"
+                    CornerRadius="8"
+                    Background="#24262E">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Name="VoiceDot" Width="10" Height="10" Margin="0,0,9,0"/>
+                    <TextBlock Name="VoiceText" Foreground="#D8DAE3" FontSize="14"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
 
         <UniformGrid Grid.Row="2" Columns="3">
             <Button Name="StartButton" Content="▶  Encender" Margin="0,0,6,0"
@@ -133,6 +199,8 @@ $reader = New-Object System.Xml.XmlNodeReader $xaml
 $window = [Windows.Markup.XamlReader]::Load($reader)
 $statusDot = $window.FindName("StatusDot")
 $statusText = $window.FindName("StatusText")
+$voiceDot = $window.FindName("VoiceDot")
+$voiceText = $window.FindName("VoiceText")
 $resultText = $window.FindName("ResultText")
 $startButton = $window.FindName("StartButton")
 $stopButton = $window.FindName("StopButton")
@@ -146,6 +214,10 @@ function Update-Status {
         $statusDot.Fill = "#E05266"
         $statusText.Text = "MINA está apagada"
     }
+
+    $voice = Get-VoiceStatus
+    $voiceDot.Fill = $voice.Color
+    $voiceText.Text = $voice.Text
 }
 
 function Invoke-PanelAction([scriptblock]$Action) {
