@@ -55,6 +55,7 @@ type VoiceWorker = {
 };
 
 let voiceWorker: VoiceWorker | undefined;
+let espeakInstallAttempted = false;
 
 function run(command: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -218,7 +219,7 @@ async function synthesizeLinux(text: string, directory: string): Promise<string>
   await mkdir(directory, { recursive: true });
   const id = createHash("sha1").update(`${Date.now()}:${randomUUID()}:${text}:linux`).digest("hex");
   const wavPath = path.join(directory, `${id}.wav`);
-  await run(espeak, [
+  const args = [
     "-v",
     process.env.ESPEAK_VOICE || "es-419+f3",
     "-s",
@@ -230,7 +231,17 @@ async function synthesizeLinux(text: string, directory: string): Promise<string>
     "-w",
     wavPath,
     text,
-  ]);
+  ];
+  try {
+    await run(espeak, args);
+  } catch (error) {
+    if (espeakInstallAttempted) throw error;
+    espeakInstallAttempted = true;
+    console.error("[lector] espeak-ng no disponible; intentando instalarlo en Linux/Colab.", error);
+    await run("apt-get", ["update", "-qq"]);
+    await run("apt-get", ["install", "-y", "-qq", "espeak-ng"]);
+    await run(espeak, args);
+  }
   return wavPath;
 }
 
