@@ -42,7 +42,7 @@ client.once(Events.ClientReady, (readyClient) => {
   console.log(`Conectado como ${readyClient.user.tag}`);
 });
 
-startActivityServer();
+if (process.env.MINA_DISABLE_ACTIVITY !== "1") startActivityServer();
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.inCachedGuild()) return;
@@ -92,6 +92,10 @@ client.on(Events.MessageCreate, handleReaderMessage);
 
 async function handleCommand(interaction: ChatInputCommandInteraction<"cached">): Promise<void> {
   if (interaction.commandName === "stream") {
+    if (process.env.MINA_DISABLE_ACTIVITY === "1") {
+      await interaction.reply({ content: "El modo stream está desactivado en esta versión de MINA.", ephemeral: true });
+      return;
+    }
     const response = await interaction.launchActivity({ withResponse: true });
     const instanceId = response.resource?.activityInstance?.id ?? response.interaction.activityInstanceId;
     if (instanceId) registerActivityRoom(instanceId, interaction.user.id);

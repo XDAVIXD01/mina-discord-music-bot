@@ -4,6 +4,7 @@ activity-dist/
 .env
 *.log
 .venv-voice/
-assets/voice/
+assets/voice/*
+!assets/voice/user_reference.wav
 scripts/__pycache__/
 test-moan.bat

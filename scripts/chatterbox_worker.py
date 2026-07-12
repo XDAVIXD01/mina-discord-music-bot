@@ -74,41 +74,6 @@ def detect_high_expressiveness(text):
     return any(re.search(pattern, text_lower) for pattern in high_patterns)
 
 
-def detect_moan_mode(text):
-    """Detecta frases que deberían sonar como gemidos/suspiros sensuales.
-    Busca patrones como 'ah', 'oh', 'mmh', 'uh', 'eh', y repeticiones de vocales.
-    """
-    text_lower = text.lower().strip()
-    moan_patterns = [
-        r"\b(a+h+|a+h+h+|a+a+h+|a+a+a+h+)\b",
-        r"\b(o+h+|o+h+h+|o+o+h+|o+o+o+h+)\b",
-        r"\b(m+m+h+|m+m+m+|m+h+m+|m+m+)\b",
-        r"\b(u+h+|u+h+h+|u+u+h+)\b",
-        r"\b(e+h+|e+h+h+|e+e+h+)\b",
-        r"\b(s[ií]+[ií]+|y+e+s+|y+e+a+h+)\b",
-        r"\b(n+o+o+|n+o+h+)\b",
-        r"\b(d+a+m+n+|d+i+o+s+|d+i+a+b+l+o+)\b",
-        r"\b(f+u+c+k+|f+o+q+|m+i+e+r+d+a+)\b",
-        r"\b(p+o+r+f+a+v+o+r+)\b",
-        r"\b(d+é+s+p+a+c+i+o+|l+e+n+t+o+)\b",
-        r"\b(r+á+p+i+d+o+)\b",
-        r"\b(s+u+a+v+e+|s+u+a+v+i+t+o+)\b",
-        r"\b(d+u+r+o+|d+u+r+a+)\b",
-        r"\b(f+u+e+r+t+e+)\b",
-        r"\b(g+u+a+p+o+|g+u+a+p+a+)\b",
-        r"\b(h+e+r+m+o+s+o+|h+e+r+m+o+s+a+)\b",
-        r"\b(b+o+n+i+t+o+|b+o+n+i+t+a+)\b",
-        r"\b(l+i+n+d+o+|l+i+n+d+a+)\b",
-        r"\b(p+r+e+c+i+o+s+o+|p+r+e+c+i+o+s+a+)\b",
-        r"\b(d+e+l+i+c+i+o+s+o+|e+x+q+u+i+s+i+t+o+)\b",
-        r"\b(i+n+c+r+e+[ií]+b+l+e+)\b",
-        r"\b(f+a+n+t+á+s+t+i+c+o+)\b",
-        r"\b(m+a+r+a+v+i+l+l+o+s+o+)\b",
-        r"\b(b+e+l+l+o+|b+e+l+l+a+)\b",
-    ]
-    return any(re.search(pattern, text_lower) for pattern in moan_patterns)
-
-
 def main():
     reference = Path(os.environ.get("MINA_VOICE_REFERENCE", "assets/voice/user_reference.wav")).resolve()
     if not reference.exists():
@@ -141,7 +106,6 @@ def main():
             out_path.parent.mkdir(parents=True, exist_ok=True)
             is_expressive = detect_expressive_mode(text)
             high_mode = detect_high_expressiveness(text)
-            is_moan = detect_moan_mode(text)
             with open(os.devnull, "w", encoding="utf8") as devnull, redirect_stderr(devnull):
                 if use_turbo:
                     wav = model.generate(
