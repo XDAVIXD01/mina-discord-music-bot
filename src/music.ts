@@ -55,6 +55,11 @@ const queues = new Map<string, Queue>();
 const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const python = process.env.PYTHON_PATH || "python";
+const ytdlpCookiesFile = process.env.YTDLP_COOKIES_FILE?.trim();
+
+function ytdlpAuthArgs(): string[] {
+  return ytdlpCookiesFile ? ["--cookies", ytdlpCookiesFile] : [];
+}
 
 function run(command: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -87,6 +92,7 @@ export async function resolveSong(query: string, requestedBy: string): Promise<S
     }
   }
   const raw = await run(ytdlp, [
+    ...ytdlpAuthArgs(),
     "--dump-single-json",
     "--no-playlist",
     "--no-warnings",
@@ -244,7 +250,17 @@ async function playNext(queue: Queue): Promise<void> {
   try {
     const downloader = spawn(
       ytdlp,
-      ["--no-playlist", "--no-warnings", "--quiet", "-f", "bestaudio/best", "-o", "-", song.url],
+      [
+        ...ytdlpAuthArgs(),
+        "--no-playlist",
+        "--no-warnings",
+        "--quiet",
+        "-f",
+        "bestaudio/best",
+        "-o",
+        "-",
+        song.url,
+      ],
       { windowsHide: true },
     );
     const transcoder = spawn(
