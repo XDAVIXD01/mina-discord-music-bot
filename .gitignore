@@ -3,3 +3,7 @@ dist/
 activity-dist/
 .env
 *.log
+.venv-voice/
+assets/voice/
+scripts/__pycache__/
+test-moan.bat

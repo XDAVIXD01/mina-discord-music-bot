@@ -1,5 +1,11 @@
 import "dotenv/config";
-import { Client, Events, GatewayIntentBits, type ChatInputCommandInteraction } from "discord.js";
+import {
+  Client,
+  Events,
+  GatewayIntentBits,
+  type ChatInputCommandInteraction,
+  type GuildTextBasedChannel,
+} from "discord.js";
 import {
   enqueue,
   enqueueMany,
@@ -18,12 +24,18 @@ import {
   toggleRepeat,
 } from "./music.js";
 import { registerActivityRoom, startActivityServer } from "./activity-server.js";
+import { getReader, handleReaderMessage, startReader, stopReader, warmUpReaderVoice } from "./reader.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) throw new Error("Falta DISCORD_TOKEN en .env");
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
 client.once(Events.ClientReady, (readyClient) => {
@@ -76,12 +88,45 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 client.on(Events.Error, (error) => console.error("Error del cliente de Discord:", error));
+client.on(Events.MessageCreate, handleReaderMessage);
 
 async function handleCommand(interaction: ChatInputCommandInteraction<"cached">): Promise<void> {
   if (interaction.commandName === "stream") {
     const response = await interaction.launchActivity({ withResponse: true });
     const instanceId = response.resource?.activityInstance?.id ?? response.interaction.activityInstanceId;
     if (instanceId) registerActivityRoom(instanceId, interaction.user.id);
+    return;
+  }
+
+  if (interaction.commandName === "leer") {
+    const subcommand = interaction.options.getSubcommand();
+    if (subcommand === "detener") {
+      await interaction.reply(
+        stopReader(interaction.guildId)
+          ? "🔇 Dejé de leer los mensajes en voz alta."
+          : "No estaba leyendo ningún canal.",
+      );
+      return;
+    }
+
+    const memberChannel = interaction.member.voice.channel;
+    if (!memberChannel) {
+      await interaction.reply({ content: "Entra primero a un canal de voz.", ephemeral: true });
+      return;
+    }
+    if (!interaction.channel?.isTextBased()) throw new Error("Usa este comando en un canal de texto.");
+    await interaction.deferReply();
+    const result = await startReader({
+      guild: interaction.guild,
+      textChannel: interaction.channel as GuildTextBasedChannel,
+      voiceChannel: memberChannel,
+    });
+    const customVoiceReady = await warmUpReaderVoice();
+    await interaction.editReply(
+      result === "moved"
+        ? `🔊 Listo, ahora leeré los mensajes de ${interaction.channel} en tu llamada${customVoiceReady ? " con voz personalizada" : ""}.`
+        : `🔊 Listo, entré a tu llamada. Desde ahora leeré en voz alta los mensajes de ${interaction.channel}${customVoiceReady ? " con voz personalizada" : ""}.`,
+    );
     return;
   }
 
@@ -150,7 +195,9 @@ async function handleCommand(interaction: ChatInputCommandInteraction<"cached">)
       await interaction.reply(
         queue?.current
           ? `🎵 **${queue.current.title}** (${formatDuration(queue.current.duration)})`
-          : "No hay música reproduciéndose.",
+          : getReader(interaction.guildId)
+            ? "Ahora estoy en modo lectura de chat."
+            : "No hay música reproduciéndose.",
       );
       break;
     case "queue": {

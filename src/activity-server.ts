@@ -302,8 +302,16 @@ export function startActivityServer(): void {
   });
 
   const staticDirectory = path.resolve(process.cwd(), "activity-dist");
-  app.use(express.static(staticDirectory));
-  app.use((_req, res) => res.sendFile(path.join(staticDirectory, "index.html")));
+  app.use(express.static(staticDirectory, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("index.html")) res.setHeader("Cache-Control", "no-store");
+      else res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    },
+  }));
+  app.use((_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.sendFile(path.join(staticDirectory, "index.html"));
+  });
 
   const server = createServer(app);
   const sockets = new WebSocketServer({ noServer: true });

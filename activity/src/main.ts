@@ -36,6 +36,20 @@ function showMessage(text: string, error = false) {
   message.classList.toggle("error", error);
 }
 
+function showBootError(error: unknown) {
+  status.textContent = "Error";
+  status.classList.remove("online");
+  showMessage(error instanceof Error ? error.message : String(error || "No se pudo iniciar."), true);
+}
+
+window.addEventListener("error", (event) => {
+  showBootError(event.error || event.message);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  showBootError(event.reason);
+});
+
 async function createSession() {
   if (!isLocal) {
     if (!clientId) throw new Error("Falta VITE_DISCORD_CLIENT_ID.");
@@ -236,7 +250,4 @@ setInterval(() => {
   if (controller && !video.paused) sendState(false);
 }, 1_000);
 
-createSession().then(connect).catch((error) => {
-  status.textContent = "Error";
-  showMessage(error instanceof Error ? error.message : "No se pudo iniciar.", true);
-});
+createSession().then(connect).catch(showBootError);

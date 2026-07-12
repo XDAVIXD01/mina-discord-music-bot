@@ -19,4 +19,17 @@ export const commands = [
   new SlashCommandBuilder()
     .setName("stream")
     .setDescription("Abre el reproductor de video sincronizado de MINA"),
+  new SlashCommandBuilder()
+    .setName("leer")
+    .setDescription("Hace que MINA lea en voz alta los mensajes de este canal")
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("iniciar")
+        .setDescription("MINA entra a tu canal de voz y lee este canal de texto"),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("detener")
+        .setDescription("Detiene la lectura en voz alta"),
+    ),
 ].map((command) => command.toJSON());
