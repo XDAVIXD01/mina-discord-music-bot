@@ -56,9 +56,13 @@ const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const python = process.env.PYTHON_PATH || "python";
 const ytdlpCookiesFile = process.env.YTDLP_COOKIES_FILE?.trim();
+const ytdlpExtractorArgs = process.env.YTDLP_EXTRACTOR_ARGS?.trim() || "youtube:player_client=android";
 
 function ytdlpAuthArgs(): string[] {
-  return ytdlpCookiesFile ? ["--cookies", ytdlpCookiesFile] : [];
+  return [
+    ...(ytdlpCookiesFile ? ["--cookies", ytdlpCookiesFile] : []),
+    ...(ytdlpExtractorArgs ? ["--extractor-args", ytdlpExtractorArgs] : []),
+  ];
 }
 
 function run(command: string, args: string[]): Promise<string> {
